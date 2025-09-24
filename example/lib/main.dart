@@ -8,7 +8,7 @@ import 'package:background_locator_2/settings/android_settings.dart';
 import 'package:background_locator_2/settings/ios_settings.dart';
 import 'package:background_locator_2/settings/locator_settings.dart';
 import 'package:flutter/material.dart';
-import 'package:location_permissions/location_permissions.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'file_manager.dart';
 import 'location_callback_handler.dart';
@@ -25,15 +25,15 @@ class _MyAppState extends State<MyApp> {
   ReceivePort port = ReceivePort();
 
   String logStr = '';
-  bool isRunning;
-  LocationDto lastLocation;
+  bool? isRunning;
+  LocationDto? lastLocation;
 
   @override
   void initState() {
     super.initState();
 
     if (IsolateNameServer.lookupPortByName(
-            LocationServiceRepository.isolateName) !=
+        LocationServiceRepository.isolateName) !=
         null) {
       IsolateNameServer.removePortNameMapping(
           LocationServiceRepository.isolateName);
@@ -43,22 +43,17 @@ class _MyAppState extends State<MyApp> {
         port.sendPort, LocationServiceRepository.isolateName);
 
     port.listen(
-      (dynamic data) async {
+          (dynamic data) async {
         await updateUI(data);
       },
     );
     initPlatformState();
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> updateUI(dynamic data) async {
     final log = await FileManager.readLogFile();
 
-    LocationDto locationDto = (data != null) ? LocationDto.fromJson(data) : null;
+    LocationDto? locationDto = (data != null) ? LocationDto.fromJson(data) : null;
     await _updateNotificationText(locationDto);
 
     setState(() {
@@ -69,13 +64,13 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  Future<void> _updateNotificationText(LocationDto data) async {
+  Future<void> _updateNotificationText(LocationDto? data) async {
     if (data == null) {
       return;
     }
 
     await BackgroundLocator.updateNotificationText(
-        title: "new location received",
+        title: "New location received",
         msg: "${DateTime.now()}",
         bigMsg: "${data.latitude}, ${data.longitude}");
   }
@@ -126,11 +121,7 @@ class _MyAppState extends State<MyApp> {
     );
     String msgStatus = "-";
     if (isRunning != null) {
-      if (isRunning) {
-        msgStatus = 'Is running';
-      } else {
-        msgStatus = 'Is not running';
-      }
+      msgStatus = isRunning! ? 'Is running' : 'Is not running';
     }
     final status = Text("Status: $msgStatus");
 
@@ -175,59 +166,54 @@ class _MyAppState extends State<MyApp> {
         lastLocation = null;
       });
     } else {
-      // show error
+      // Permission denied, show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Location permission is required to start service')),
+      );
     }
   }
 
   Future<bool> _checkLocationPermission() async {
-    final access = await LocationPermissions().checkPermissionStatus();
-    switch (access) {
-      case PermissionStatus.unknown:
-      case PermissionStatus.denied:
-      case PermissionStatus.restricted:
-        final permission = await LocationPermissions().requestPermissions(
-          permissionLevel: LocationPermissionLevel.locationAlways,
-        );
-        if (permission == PermissionStatus.granted) {
-          return true;
-        } else {
-          return false;
-        }
-        break;
-      case PermissionStatus.granted:
-        return true;
-        break;
-      default:
-        return false;
-        break;
+    // Check location permission status
+    PermissionStatus status = await Permission.locationAlways.status;
+
+    if (status.isGranted) {
+      return true;
+    } else {
+      // Request permission
+      final result = await Permission.locationAlways.request();
+      return result.isGranted;
     }
   }
 
-  Future<void> _startLocator() async{
+  Future<void> _startLocator() async {
     Map<String, dynamic> data = {'countInit': 1};
-    return await BackgroundLocator.registerLocationUpdate(LocationCallbackHandler.callback,
-        initCallback: LocationCallbackHandler.initCallback,
-        initDataCallback: data,
-        disposeCallback: LocationCallbackHandler.disposeCallback,
-        iosSettings: IOSSettings(
-            accuracy: LocationAccuracy.NAVIGATION,
-            distanceFilter: 0,
-            stopWithTerminate: true
+    return await BackgroundLocator.registerLocationUpdate(
+      LocationCallbackHandler.callback,
+      initCallback: LocationCallbackHandler.initCallback,
+      initDataCallback: data,
+      disposeCallback: LocationCallbackHandler.disposeCallback,
+      iosSettings: IOSSettings(
+        accuracy: LocationAccuracy.NAVIGATION,
+        distanceFilter: 0,
+        stopWithTerminate: true,
+      ),
+      autoStop: false,
+      androidSettings: AndroidSettings(
+        accuracy: LocationAccuracy.NAVIGATION,
+        interval: 5,
+        distanceFilter: 0,
+        client: LocationClient.google,
+        androidNotificationSettings: AndroidNotificationSettings(
+          notificationChannelName: 'Location tracking',
+          notificationTitle: 'Start Location Tracking',
+          notificationMsg: 'Track location in background',
+          notificationBigMsg:
+          'Background location is on to keep the app up-to-date with your location.',
+          notificationIconColor: Colors.grey,
+          notificationTapCallback: LocationCallbackHandler.notificationCallback,
         ),
-        autoStop: false,
-        androidSettings: AndroidSettings(
-            accuracy: LocationAccuracy.NAVIGATION,
-            interval: 5,
-            distanceFilter: 0,
-            client: LocationClient.google,
-            androidNotificationSettings: AndroidNotificationSettings(
-                notificationChannelName: 'Location tracking',
-                notificationTitle: 'Start Location Tracking',
-                notificationMsg: 'Track location in background',
-                notificationBigMsg:
-                    'Background location is on to keep the app up-tp-date with your location. This is required for main features to work properly when the app is not running.',
-                notificationIconColor: Colors.grey,
-                notificationTapCallback:
-                    LocationCallbackHandler.notificationCallback)));
+      ),
+    );
   }
 }
