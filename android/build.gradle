@@ -26,21 +26,41 @@ rootProject.allprojects {
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
 
-android {
-    namespace= "yukams.app.background_locator_2"
-    compileSdkVersion 29
+//android {
+//    namespace= "yukams.app.background_locator_2"
+//    compileSdkVersion 29
+//
+//    sourceSets {
+//        main.java.srcDirs += 'src/main/kotlin'
+//    }
+//    defaultConfig {
+//        minSdkVersion 19
+//        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+//    }
+//    lintOptions {
+//        disable 'InvalidPackage'
+//    }
+//}
+ android {
+     namespace "yukams.app.background_locator_2"
+     compileSdkVersion 35 // or 35, match your app
 
-    sourceSets {
-        main.java.srcDirs += 'src/main/kotlin'
-    }
-    defaultConfig {
-        minSdkVersion 19
-        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-    }
-    lintOptions {
-        disable 'InvalidPackage'
-    }
-}
+     defaultConfig {
+         minSdkVersion 19
+         targetSdkVersion 35
+     }
+
+     // Force Java 17
+     compileOptions {
+         sourceCompatibility = JavaVersion.VERSION_17
+         targetCompatibility = JavaVersion.VERSION_17
+     }
+
+     // Force Kotlin 17
+     kotlin {
+         jvmToolchain(17)
+     }
+ }
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
